@@ -1,0 +1,60 @@
+pipeline {
+    agent { label 'dev-agent' }
+
+    environment {
+        APP_NAME        = 'wazuh'
+        ENVIRONMENT     = 'develop'
+        GCP_PROJECT     = 'zoop-one-development'
+        GKE_CLUSTER     = 'development-k8s-cluster'
+        GKE_REGION      = 'asia-south1'
+        INFRA_REPO      = 'wazuh-infra'
+    }
+
+    stages {
+        stage('Clone Infra Repo') {
+            steps {
+                checkout scm
+            }
+        }
+
+        stage('Authenticate GKE') {
+            steps {
+                sh '''
+                    gcloud container clusters get-credentials $GKE_CLUSTER \
+                        --region $GKE_REGION \
+                        --project $GCP_PROJECT
+                '''
+            }
+        }
+
+        stage('Deploy Wazuh') {
+            steps {
+                sh '''
+                    helm upgrade --install $APP_NAME ./wazuh/helm-chart/ \
+                        --namespace wazuh \
+                        --create-namespace \
+                        -f ./wazuh/helm-chart/values-development.yaml \
+                        --wait --timeout 300s
+                '''
+            }
+        }
+
+        stage('Get Agent Service IP') {
+            steps {
+                sh '''
+                    echo "Wazuh Manager Agent Service IP:"
+                    kubectl get svc wazuh-manager-agents -n wazuh
+                '''
+            }
+        }
+    }
+
+    post {
+        success {
+            echo 'Wazuh deployed successfully to development.'
+        }
+        failure {
+            echo 'Wazuh deployment failed. Check logs above.'
+        }
+    }
+}

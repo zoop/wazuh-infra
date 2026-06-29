@@ -1,0 +1,23 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: wazuh-manager-agents
+  namespace: {{ .Values.namespace }}
+  labels:
+    {{- include "wazuh.labels" . | nindent 4 }}
+  annotations:
+    # GCP LoadBalancer — gets a public IP that endpoints connect to
+    cloud.google.com/load-balancer-type: "External"
+spec:
+  type: {{ .Values.agentService.type }}
+  selector:
+    {{- include "wazuh.selectorLabels" . | nindent 4 }}
+  ports:
+    - name: agent
+      port: {{ .Values.service.agentPort }}
+      targetPort: agent
+      protocol: TCP
+    - name: enrollment
+      port: {{ .Values.service.enrollmentPort }}
+      targetPort: enrollment
+      protocol: TCP

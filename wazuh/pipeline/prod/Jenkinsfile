@@ -1,0 +1,69 @@
+pipeline {
+    agent { label 'prod-agent' }
+
+    environment {
+        APP_NAME        = 'wazuh'
+        ENVIRONMENT     = 'production'
+        GCP_PROJECT     = 'zoop-production'
+        GKE_CLUSTER     = 'zoop-one-production-cluster'
+        GKE_REGION      = 'asia-south1'
+        INFRA_REPO      = 'wazuh-infra'
+    }
+
+    stages {
+        stage('Approval - Deploy?') {
+            steps {
+                input message: 'Deploy Wazuh to PRODUCTION?', ok: 'Yes, Deploy'
+            }
+        }
+
+        stage('Clone Infra Repo') {
+            steps {
+                checkout scm
+            }
+        }
+
+        stage('Authenticate GKE') {
+            steps {
+                sh '''
+                    gcloud container clusters get-credentials $GKE_CLUSTER \
+                        --region $GKE_REGION \
+                        --project $GCP_PROJECT
+                '''
+            }
+        }
+
+        stage('Deploy Wazuh') {
+            steps {
+                sh '''
+                    helm upgrade --install $APP_NAME ./wazuh/helm-chart/ \
+                        --namespace wazuh \
+                        --create-namespace \
+                        -f ./wazuh/helm-chart/values-production.yaml \
+                        --wait --timeout 300s
+                '''
+            }
+        }
+
+        stage('Get Agent Service IP') {
+            steps {
+                sh '''
+                    echo "========================================"
+                    echo "Wazuh Manager External IP (IMPORTANT):"
+                    echo "Use this in JumpCloud agent scripts."
+                    echo "========================================"
+                    kubectl get svc wazuh-manager-agents -n wazuh
+                '''
+            }
+        }
+    }
+
+    post {
+        success {
+            echo 'Wazuh deployed to production. Update JumpCloud scripts with the LoadBalancer IP above.'
+        }
+        failure {
+            echo 'Production deployment failed. Check logs above.'
+        }
+    }
+}

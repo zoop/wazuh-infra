@@ -1,0 +1,17 @@
+Wazuh Manager deployed successfully!
+
+1. Get the LoadBalancer IP (this is your WAZUH_MANAGER_IP):
+   kubectl get svc wazuh-manager-agents -n wazuh
+
+   Wait 1-2 minutes for GCP to assign the external IP.
+
+2. Once you have the IP, update the JumpCloud scripts:
+   - wazuh/jumpcloud-scripts/install-macos.sh → set WAZUH_MANAGER_IP
+   - wazuh/jumpcloud-scripts/install-windows.ps1 → set WAZUH_MANAGER_IP
+
+3. Run the scripts via JumpCloud Commands on all devices.
+
+4. Access the Wazuh API:
+   kubectl port-forward svc/wazuh-manager-api 55000:55000 -n wazuh
+
+Dashboard will be available at https://localhost:55000

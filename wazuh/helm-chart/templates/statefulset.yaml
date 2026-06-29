@@ -1,0 +1,90 @@
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: wazuh-manager
+  namespace: {{ .Values.namespace }}
+  labels:
+    {{- include "wazuh.labels" . | nindent 4 }}
+spec:
+  replicas: {{ .Values.replicaCount }}
+  selector:
+    matchLabels:
+      {{- include "wazuh.selectorLabels" . | nindent 6 }}
+  serviceName: wazuh-manager
+  template:
+    metadata:
+      labels:
+        {{- include "wazuh.selectorLabels" . | nindent 8 }}
+    spec:
+      serviceAccountName: {{ include "wazuh.serviceAccountName" . }}
+      containers:
+        - name: wazuh-manager
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          ports:
+            - name: agent
+              containerPort: {{ .Values.service.agentPort }}
+              protocol: TCP
+            - name: enrollment
+              containerPort: {{ .Values.service.enrollmentPort }}
+              protocol: TCP
+            - name: api
+              containerPort: {{ .Values.service.apiPort }}
+              protocol: TCP
+          env:
+            - name: WAZUH_MANAGER_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: wazuh-secrets
+                  key: admin-password
+          volumeMounts:
+            - name: wazuh-config
+              mountPath: /var/ossec/etc/ossec.conf
+              subPath: ossec.conf
+            - name: wazuh-data
+              mountPath: /var/ossec/data
+            - name: wazuh-logs
+              mountPath: /var/ossec/logs
+            - name: wazuh-queue
+              mountPath: /var/ossec/queue
+          resources:
+            {{- toYaml .Values.resources | nindent 12 }}
+          livenessProbe:
+            tcpSocket:
+              port: {{ .Values.service.agentPort }}
+            initialDelaySeconds: 60
+            periodSeconds: 30
+          readinessProbe:
+            tcpSocket:
+              port: {{ .Values.service.agentPort }}
+            initialDelaySeconds: 30
+            periodSeconds: 10
+      volumes:
+        - name: wazuh-config
+          configMap:
+            name: wazuh-manager-config
+  volumeClaimTemplates:
+    - metadata:
+        name: wazuh-data
+      spec:
+        accessModes: ["ReadWriteOnce"]
+        storageClassName: {{ .Values.storage.storageClass }}
+        resources:
+          requests:
+            storage: {{ .Values.storage.size }}
+    - metadata:
+        name: wazuh-logs
+      spec:
+        accessModes: ["ReadWriteOnce"]
+        storageClassName: {{ .Values.storage.storageClass }}
+        resources:
+          requests:
+            storage: 10Gi
+    - metadata:
+        name: wazuh-queue
+      spec:
+        accessModes: ["ReadWriteOnce"]
+        storageClassName: {{ .Values.storage.storageClass }}
+        resources:
+          requests:
+            storage: 10Gi

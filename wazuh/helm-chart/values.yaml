@@ -1,0 +1,36 @@
+replicaCount: 1
+
+image:
+  repository: wazuh/wazuh-manager
+  pullPolicy: Always
+  tag: "4.9.2"
+
+serviceAccount:
+  create: true
+  name: "wazuh-sa"
+
+namespace: wazuh
+
+service:
+  apiPort: 55000
+  agentPort: 1514
+  enrollmentPort: 1515
+
+agentService:
+  type: LoadBalancer
+
+resources:
+  limits:
+    cpu: "1000m"
+    memory: "2Gi"
+  requests:
+    cpu: "500m"
+    memory: "1Gi"
+
+storage:
+  size: 50Gi
+  storageClass: "standard"
+
+wazuh:
+  alertLevel: 3
+  adminPassword: "REDACTED_HELM_ADMIN_PASSWORD"
