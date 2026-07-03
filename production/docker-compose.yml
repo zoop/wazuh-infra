@@ -7,6 +7,7 @@ services:
   # ─────────────────────────────────────────
   wazuh-indexer:
     image: wazuh/wazuh-indexer:4.14.5
+    platform: linux/amd64
     container_name: wazuh-indexer
     hostname: wazuh-indexer
     restart: always
@@ -41,6 +42,7 @@ services:
   # ─────────────────────────────────────────
   wazuh-manager:
     image: wazuh/wazuh-manager:4.14.5
+    platform: linux/amd64
     container_name: wazuh-manager
     hostname: wazuh-manager
     restart: always
@@ -77,6 +79,7 @@ services:
   # ─────────────────────────────────────────
   wazuh-dashboard:
     image: wazuh/wazuh-dashboard:4.14.5
+    platform: linux/amd64
     container_name: wazuh-dashboard
     hostname: wazuh-dashboard
     restart: always
@@ -126,14 +129,18 @@ services:
     image: ghcr.io/dfir-iris/iriswebapp_app:latest
     container_name: iris-web
     restart: always
+    command: ["/bin/bash", "/iriswebapp/iris-entrypoint.sh"]
     environment:
       POSTGRES_USER: ${POSTGRES_USER}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_ADMIN_USER: ${POSTGRES_ADMIN_USER}
+      POSTGRES_ADMIN_PASSWORD: ${POSTGRES_ADMIN_PASSWORD}
       POSTGRES_SERVER: iris-db
       POSTGRES_PORT: 5432
+      POSTGRES_DB: iris_db
       IRIS_SECRET_KEY: ${IRIS_SECRET_KEY}
       IRIS_SECURITY_PASSWORD_SALT: ${IRIS_SECURITY_PASSWORD_SALT}
-      CELERY_BROKER: amqp://${RABBITMQ_USER}:${RABBITMQ_PASSWORD}@iris-rabbitmq
+      CELERY_BROKER: ${CELERY_BROKER}
       IRIS_ADM_EMAIL: ${IRIS_ADM_EMAIL}
       IRIS_ADM_PASSWORD: ${IRIS_ADM_PASSWORD}
       IRIS_ADM_USERNAME: administrator
@@ -142,15 +149,21 @@ services:
       - iris-rabbitmq
 
   iris-worker:
-    image: ghcr.io/dfir-iris/iriswebapp_worker:latest
+    image: ghcr.io/dfir-iris/iriswebapp_app:latest
     container_name: iris-worker
     restart: always
+    command: ["/bin/bash", "/iriswebapp/iris-entrypoint.sh", "iris-worker"]
     environment:
       POSTGRES_USER: ${POSTGRES_USER}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_ADMIN_USER: ${POSTGRES_ADMIN_USER}
+      POSTGRES_ADMIN_PASSWORD: ${POSTGRES_ADMIN_PASSWORD}
       POSTGRES_SERVER: iris-db
-      CELERY_BROKER: amqp://${RABBITMQ_USER}:${RABBITMQ_PASSWORD}@iris-rabbitmq
+      POSTGRES_PORT: 5432
+      POSTGRES_DB: iris_db
+      CELERY_BROKER: ${CELERY_BROKER}
       IRIS_SECRET_KEY: ${IRIS_SECRET_KEY}
+      IRIS_SECURITY_PASSWORD_SALT: ${IRIS_SECURITY_PASSWORD_SALT}
     depends_on:
       - iris-db
       - iris-rabbitmq
@@ -161,6 +174,16 @@ services:
     restart: always
     ports:
       - "8443:443"
+    environment:
+      INTERFACE_HTTPS_PORT: 443
+      IRIS_UPSTREAM_SERVER: iris-web
+      IRIS_UPSTREAM_PORT: 8000
+      SERVER_NAME: localhost
+      CERT_FILENAME: iris.crt
+      KEY_FILENAME: iris.key
+    volumes:
+      - ./certs/wazuh-dashboard.pem:/www/certs/iris.crt
+      - ./certs/wazuh-dashboard-key.pem:/www/certs/iris.key
     depends_on:
       - iris-web
 
