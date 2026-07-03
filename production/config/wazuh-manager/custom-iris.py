@@ -11,7 +11,6 @@ import urllib3
 
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
-# Read alert data passed by Wazuh
 alert_file = open(sys.argv[1])
 alert = json.load(alert_file)
 alert_file.close()
@@ -19,13 +18,11 @@ alert_file.close()
 hook_url = sys.argv[3]
 api_key  = sys.argv[2]
 
-# Build IRIS case payload
 payload = {
     "case_name":        f"[Wazuh] {alert.get('rule', {}).get('description', 'Alert')}",
     "case_description": json.dumps(alert, indent=2),
     "case_customer":    1,
-    "case_classification": 1,
-    "soc_id":           f"wazuh-{alert.get('id', 'unknown')}",
+    "case_soc_id":      f"wazuh-{alert.get('id', 'unknown')}",
     "custom_attributes": {}
 }
 
@@ -36,7 +33,7 @@ headers = {
 
 try:
     response = requests.post(
-        f"{hook_url}/case/add",
+        hook_url,
         json=payload,
         headers=headers,
         verify=False,
