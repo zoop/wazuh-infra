@@ -81,7 +81,13 @@ rm wazuh-dashboard.csr
 cd ..
 echo "✓ Certificates generated"
 
-# 5. Start stack
+# 5. Inject secrets into config files
+echo "Injecting secrets into config files..."
+source .env
+sed -i "s|WAZUH_API_PASSWORD_PLACEHOLDER|${API_PASSWORD}|g" config/wazuh-dashboard/wazuh.yml
+sed -i "s|IRIS_API_KEY_PLACEHOLDER|${IRIS_API_KEY}|g" config/wazuh-manager/ossec.conf
+
+# 6. Start stack
 echo "Starting Wazuh + IRIS..."
 docker compose up -d
 
