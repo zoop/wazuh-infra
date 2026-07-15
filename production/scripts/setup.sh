@@ -29,8 +29,8 @@ if [ ! -f .env ]; then
   # Generate random secrets
   SECRET=$(python3 -c "import secrets; print(secrets.token_hex(32))")
   SALT=$(python3 -c "import secrets; print(secrets.token_hex(16))")
-  sed -i "s/change_this_to_a_random_secret/$SECRET/" .env
-  sed -i "s/change_this_to_a_random_salt/$SALT/" .env
+  sed -i "s|generate_with: openssl rand -hex 32|$SECRET|" .env
+  sed -i "s|generate_with: openssl rand -hex 16|$SALT|" .env
   echo "✓ .env created — edit IRIS_ADM_PASSWORD and other passwords before starting"
 fi
 
@@ -96,11 +96,11 @@ echo "=== Setup Complete ==="
 echo ""
 echo "Wazuh Dashboard : https://<your-server-ip>"
 echo "  Username      : admin"
-echo "  Password      : REDACTED_INDEXER_PASSWORD (change in .env)"
+echo "  Password      : value of INDEXER_PASSWORD in .env"
 echo ""
 echo "IRIS Dashboard  : https://<your-server-ip>:8443"
 echo "  Username      : administrator"
-echo "  Password      : REDACTED_IRIS_ADMIN_PASSWORD (change in .env)"
+echo "  Password      : value of IRIS_ADM_PASSWORD in .env"
 echo ""
 echo "After IRIS is up, get your API key from:"
 echo "  IRIS → My Profile → API Key"

@@ -3,6 +3,6 @@ hosts:
       url: "https://wazuh-manager"
       port: 55000
       username: wazuh-wui
-      password: "REDACTED_WAZUH_API_PASSWORD"
+      password: "WAZUH_API_PASSWORD_PLACEHOLDER"
       run_as: false
 enrollment.dns: "127.0.0.1"

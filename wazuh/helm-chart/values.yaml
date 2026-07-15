@@ -33,4 +33,4 @@ storage:
 
 wazuh:
   alertLevel: 3
-  adminPassword: "REDACTED_HELM_ADMIN_PASSWORD"
+  adminPassword: "CHANGE_ME_SET_VIA_SECRET_VALUES_OVERRIDE"

@@ -46,13 +46,13 @@ services:
     environment:
       - INDEXER_URL=https://wazuh-indexer:9200
       - INDEXER_USERNAME=admin
-      - INDEXER_PASSWORD=${INDEXER_PASSWORD:-REDACTED_INDEXER_PASSWORD}
+      - INDEXER_PASSWORD=${INDEXER_PASSWORD:?Set INDEXER_PASSWORD in local/.env}
       - FILEBEAT_SSL_VERIFICATION_MODE=full
       - SSL_CERTIFICATE_AUTHORITIES=/etc/ssl/root-ca.pem
       - SSL_CERTIFICATE=/etc/ssl/filebeat.pem
       - SSL_KEY=/etc/ssl/filebeat.key
       - API_USERNAME=${API_USERNAME:-wazuh-wui}
-      - API_PASSWORD=${API_PASSWORD:-REDACTED_WAZUH_API_PASSWORD}
+      - API_PASSWORD=${API_PASSWORD:?Set API_PASSWORD in local/.env}
     volumes:
       - wazuh-manager-data:/var/ossec/data
       - wazuh-manager-logs:/var/ossec/logs
@@ -73,12 +73,12 @@ services:
       - "443:5601"
     environment:
       - INDEXER_USERNAME=admin
-      - INDEXER_PASSWORD=${INDEXER_PASSWORD:-REDACTED_INDEXER_PASSWORD}
+      - INDEXER_PASSWORD=${INDEXER_PASSWORD:?Set INDEXER_PASSWORD in local/.env}
       - WAZUH_API_URL=https://wazuh-manager
       - DASHBOARD_USERNAME=kibanaserver
       - DASHBOARD_PASSWORD=kibanaserver
       - API_USERNAME=${API_USERNAME:-wazuh-wui}
-      - API_PASSWORD=${API_PASSWORD:-REDACTED_WAZUH_API_PASSWORD}
+      - API_PASSWORD=${API_PASSWORD:?Set API_PASSWORD in local/.env}
     volumes:
       - ./certs/wazuh-dashboard.pem:/usr/share/wazuh-dashboard/certs/wazuh-dashboard.pem
       - ./certs/wazuh-dashboard-key.pem:/usr/share/wazuh-dashboard/certs/wazuh-dashboard-key.pem

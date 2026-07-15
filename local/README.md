@@ -26,17 +26,23 @@ cp -r /tmp/wazuh-docker/single-node/generate-indexer-certs.yml ./generate-indexe
 docker compose -f generate-indexer-certs.yml run --rm generator
 ```
 
-### 3. Start Wazuh
+### 3. Create your `.env` file
+```bash
+cp .env.example .env
+# edit .env and set INDEXER_PASSWORD / API_PASSWORD
+```
+
+### 4. Start Wazuh
 ```bash
 docker compose up -d
 ```
 
 Wait about **2-3 minutes** for everything to start up.
 
-### 4. Open the Dashboard
+### 5. Open the Dashboard
 - URL: `https://localhost`
 - Username: `admin`
-- Password: `REDACTED_INDEXER_PASSWORD`
+- Password: value of `INDEXER_PASSWORD` in `local/.env`
 
 > Your browser will show a security warning — that's normal for self-signed certs. Click "Advanced" → "Proceed".
 
