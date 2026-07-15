@@ -2,7 +2,7 @@
 # Run this via JumpCloud Commands on all Windows devices
 
 $WAZUH_MANAGER_IP = "YOUR_WAZUH_MANAGER_IP"
-$WAZUH_VERSION = "4.9.2"
+$WAZUH_VERSION = "4.14.5"
 $WAZUH_MSI = "wazuh-agent-${WAZUH_VERSION}-1.msi"
 $WAZUH_URL = "https://packages.wazuh.com/4.x/windows/${WAZUH_MSI}"
 $INSTALLER_PATH = "C:\Temp\${WAZUH_MSI}"

@@ -3,7 +3,7 @@
 # Run this via JumpCloud Commands on all macOS devices
 
 WAZUH_MANAGER_IP="YOUR_WAZUH_MANAGER_IP"
-WAZUH_VERSION="4.9.2"
+WAZUH_VERSION="4.14.5"
 WAZUH_PKG="wazuh-agent-${WAZUH_VERSION}-1.arm64.pkg"
 WAZUH_PKG_URL="https://packages.wazuh.com/4.x/macos/${WAZUH_PKG}"
 
