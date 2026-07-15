@@ -2,6 +2,7 @@ network.host: 0.0.0.0
 node.name: wazuh.indexer
 bootstrap.system_call_filter: false
 discovery.type: single-node
+compatibility.override_main_response_version: true
 
 plugins.security.ssl.transport.pemcert_filepath: certs/wazuh.indexer.pem
 plugins.security.ssl.transport.pemkey_filepath: certs/wazuh.indexer.key
