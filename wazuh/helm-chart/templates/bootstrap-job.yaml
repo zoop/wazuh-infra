@@ -1,0 +1,95 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: wazuh-bootstrap-{{ .Release.Revision }}
+  namespace: {{ .Values.namespace }}
+  labels:
+    {{- include "wazuh.labels" . | nindent 4 }}
+  annotations:
+    "helm.sh/hook": pre-install,pre-upgrade
+    "helm.sh/hook-weight": "-10"
+    "helm.sh/hook-delete-policy": before-hook-creation,hook-succeeded
+spec:
+  backoffLimit: 2
+  template:
+    metadata:
+      labels:
+        {{- include "wazuh.selectorLabels" . | nindent 8 }}
+    spec:
+      serviceAccountName: wazuh-bootstrap
+      restartPolicy: Never
+      containers:
+        - name: bootstrap
+          image: "alpine/k8s:1.30.0"
+          env:
+            - name: INDEXER_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: wazuh-secrets
+                  key: indexer-password
+          command:
+            - /bin/bash
+            - -c
+            - |
+              set -euo pipefail
+              apk add --no-cache openssl apache2-utils >/dev/null
+              NS="{{ .Values.namespace }}"
+
+              # --- TLS certs: generate once, never rotate silently on upgrade ---
+              if kubectl get secret wazuh-certs -n "$NS" >/dev/null 2>&1; then
+                echo "wazuh-certs already exists, skipping cert generation"
+              else
+                mkdir -p /tmp/certs && cd /tmp/certs
+                openssl genrsa -out root-ca-key.pem 2048 >/dev/null 2>&1
+                openssl req -new -x509 -sha256 -key root-ca-key.pem -out root-ca.pem -days 3650 \
+                  -subj "/C=US/L=California/O=Wazuh/OU=Wazuh/CN=root-ca" >/dev/null 2>&1
+
+                for cn in wazuh-indexer wazuh-manager wazuh-dashboard admin; do
+                  openssl genrsa -out "${cn}-key.pem" 2048 >/dev/null 2>&1
+                  openssl req -new -key "${cn}-key.pem" -out "${cn}.csr" \
+                    -subj "/C=US/L=California/O=Wazuh/OU=Wazuh/CN=${cn}" >/dev/null 2>&1
+                  openssl x509 -req -in "${cn}.csr" -CA root-ca.pem -CAkey root-ca-key.pem \
+                    -CAcreateserial -out "${cn}.pem" -days 3650 -sha256 >/dev/null 2>&1
+                  rm "${cn}.csr"
+                done
+
+                kubectl create secret generic wazuh-certs -n "$NS" \
+                  --from-file=root-ca.pem --from-file=root-ca-key.pem \
+                  --from-file=wazuh-indexer.pem --from-file=wazuh-indexer-key.pem \
+                  --from-file=wazuh-manager.pem --from-file=wazuh-manager-key.pem \
+                  --from-file=wazuh-dashboard.pem --from-file=wazuh-dashboard-key.pem \
+                  --from-file=admin.pem --from-file=admin-key.pem
+                echo "wazuh-certs created"
+              fi
+
+              # --- internal_users.yml: regenerated every deploy to track the
+              # currently configured INDEXER_PASSWORD. Note: this updates the
+              # config file OpenSearch reads on bootstrap. If the security
+              # index already exists (cluster previously initialized), a
+              # changed password here requires re-running securityadmin.sh
+              # inside wazuh-indexer to push the update - this job alone does
+              # not rotate an already-initialized cluster's live credentials.
+              ADMIN_HASH=$(htpasswd -nbBC 12 admin "$INDEXER_PASSWORD" | cut -d: -f2)
+              printf '%s\n' \
+                '---' \
+                '_meta:' \
+                '  type: "internalusers"' \
+                '  config_version: 2' \
+                '' \
+                'admin:' \
+                "  hash: \"${ADMIN_HASH}\"" \
+                '  reserved: true' \
+                '  backend_roles:' \
+                '  - "admin"' \
+                '  description: "Admin user"' \
+                '' \
+                'kibanaserver:' \
+                '  hash: "$2y$12$9KMrYJwaf4x.PY8Omm1x3eazto6rWDz26w05U8.gkaR1Hil9jrrDO"' \
+                '  reserved: true' \
+                '  description: "Kibana server user"' \
+                > /tmp/internal_users.yml
+
+              kubectl create secret generic wazuh-internal-users -n "$NS" \
+                --from-file=internal_users.yml=/tmp/internal_users.yml \
+                --dry-run=client -o yaml | kubectl apply -f -
+              echo "wazuh-internal-users applied"

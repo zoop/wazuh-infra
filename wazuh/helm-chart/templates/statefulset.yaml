@@ -10,17 +10,30 @@ spec:
   selector:
     matchLabels:
       {{- include "wazuh.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: manager
   serviceName: wazuh-manager
   template:
     metadata:
       labels:
         {{- include "wazuh.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: manager
     spec:
       serviceAccountName: {{ include "wazuh.serviceAccountName" . }}
+      initContainers:
+        - name: wait-for-certs
+          image: "alpine/k8s:1.30.0"
+          command:
+            - /bin/bash
+            - -c
+            - |
+              until kubectl get secret wazuh-certs -n {{ .Values.namespace }} >/dev/null 2>&1; do
+                echo "waiting for wazuh-certs secret..."
+                sleep 3
+              done
       containers:
         - name: wazuh-manager
-          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
-          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          image: "{{ .Values.manager.image.repository }}:{{ .Values.manager.image.tag }}"
+          imagePullPolicy: {{ .Values.manager.image.pullPolicy }}
           ports:
             - name: agent
               containerPort: {{ .Values.service.agentPort }}
@@ -32,15 +45,43 @@ spec:
               containerPort: {{ .Values.service.apiPort }}
               protocol: TCP
           env:
-            - name: WAZUH_MANAGER_PASSWORD
+            - name: INDEXER_URL
+              value: "https://wazuh-indexer:9200"
+            - name: INDEXER_USERNAME
               valueFrom:
                 secretKeyRef:
                   name: wazuh-secrets
-                  key: admin-password
+                  key: indexer-username
+            - name: INDEXER_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: wazuh-secrets
+                  key: indexer-password
+            - name: FILEBEAT_SSL_VERIFICATION_MODE
+              value: "full"
+            - name: SSL_CERTIFICATE_AUTHORITIES
+              value: "/etc/ssl/root-ca.pem"
+            - name: SSL_CERTIFICATE
+              value: "/etc/ssl/filebeat.pem"
+            - name: SSL_KEY
+              value: "/etc/ssl/filebeat.key"
+            - name: API_USERNAME
+              valueFrom:
+                secretKeyRef:
+                  name: wazuh-secrets
+                  key: api-username
+            - name: API_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: wazuh-secrets
+                  key: api-password
           volumeMounts:
             - name: wazuh-config
               mountPath: /var/ossec/etc/ossec.conf
               subPath: ossec.conf
+            - name: certs
+              mountPath: /etc/ssl
+              readOnly: true
             - name: wazuh-data
               mountPath: /var/ossec/data
             - name: wazuh-logs
@@ -48,7 +89,7 @@ spec:
             - name: wazuh-queue
               mountPath: /var/ossec/queue
           resources:
-            {{- toYaml .Values.resources | nindent 12 }}
+            {{- toYaml .Values.manager.resources | nindent 12 }}
           livenessProbe:
             tcpSocket:
               port: {{ .Values.service.agentPort }}
@@ -63,20 +104,30 @@ spec:
         - name: wazuh-config
           configMap:
             name: wazuh-manager-config
+        - name: certs
+          secret:
+            secretName: wazuh-certs
+            items:
+              - key: root-ca.pem
+                path: root-ca.pem
+              - key: wazuh-manager.pem
+                path: filebeat.pem
+              - key: wazuh-manager-key.pem
+                path: filebeat.key
   volumeClaimTemplates:
     - metadata:
         name: wazuh-data
       spec:
         accessModes: ["ReadWriteOnce"]
-        storageClassName: {{ .Values.storage.storageClass }}
+        storageClassName: {{ .Values.manager.storage.storageClass }}
         resources:
           requests:
-            storage: {{ .Values.storage.size }}
+            storage: {{ .Values.manager.storage.size }}
     - metadata:
         name: wazuh-logs
       spec:
         accessModes: ["ReadWriteOnce"]
-        storageClassName: {{ .Values.storage.storageClass }}
+        storageClassName: {{ .Values.manager.storage.storageClass }}
         resources:
           requests:
             storage: 10Gi
@@ -84,7 +135,7 @@ spec:
         name: wazuh-queue
       spec:
         accessModes: ["ReadWriteOnce"]
-        storageClassName: {{ .Values.storage.storageClass }}
+        storageClassName: {{ .Values.manager.storage.storageClass }}
         resources:
           requests:
             storage: 10Gi

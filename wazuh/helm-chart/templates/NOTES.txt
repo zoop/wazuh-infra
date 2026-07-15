@@ -1,17 +1,38 @@
-Wazuh Manager deployed successfully!
+Wazuh SIEM/EDR deployed to namespace "{{ .Values.namespace }}"!
 
-1. Get the LoadBalancer IP (this is your WAZUH_MANAGER_IP):
-   kubectl get svc wazuh-manager-agents -n wazuh
+Deployed: wazuh-manager, wazuh-indexer, wazuh-dashboard.
+{{- if not .Values.iris.enabled }}
+IRIS integration is disabled (iris.enabled=false) - alerts will not create
+IRIS cases. Set iris.enabled=true and iris.hookUrl/iris.apiKey (via a
+values-secrets.yaml override) once you have an IRIS instance reachable from
+this cluster.
+{{- end }}
+
+1. Get the agent enrollment LoadBalancer IP (this is your WAZUH_MANAGER_IP):
+   kubectl get svc wazuh-manager-agents -n {{ .Values.namespace }}
 
    Wait 1-2 minutes for GCP to assign the external IP.
 
-2. Once you have the IP, update the JumpCloud scripts:
-   - wazuh/jumpcloud-scripts/install-macos.sh → set WAZUH_MANAGER_IP
-   - wazuh/jumpcloud-scripts/install-windows.ps1 → set WAZUH_MANAGER_IP
+2. Update the JumpCloud scripts with that IP, then run them on endpoints:
+   - wazuh/jumpcloud-scripts/install-macos.sh
+   - wazuh/jumpcloud-scripts/install-windows.ps1
 
-3. Run the scripts via JumpCloud Commands on all devices.
+3. Access the Wazuh Dashboard (web UI):
+   {{- if eq .Values.dashboardService.type "LoadBalancer" }}
+   kubectl get svc wazuh-dashboard -n {{ .Values.namespace }}
+   Then browse to https://<EXTERNAL-IP>
+   {{- else }}
+   kubectl port-forward svc/wazuh-dashboard 8443:443 -n {{ .Values.namespace }}
+   Then browse to https://localhost:8443
+   {{- end }}
+   Username: admin
+   Password: the "indexerPassword" value you set in your values-secrets.yaml
 
-4. Access the Wazuh API:
-   kubectl port-forward svc/wazuh-manager-api 55000:55000 -n wazuh
+4. Access the Wazuh Manager REST API directly (optional, not a UI):
+   kubectl port-forward svc/wazuh-manager-api {{ .Values.service.apiPort }}:{{ .Values.service.apiPort }} -n {{ .Values.namespace }}
 
-Dashboard will be available at https://localhost:55000
+Known limitation: rotating "indexerPassword" after the initial install updates
+the bootstrap config but does not push the change into an already-initialized
+OpenSearch security index. To rotate on a live cluster, run
+securityadmin.sh inside the wazuh-indexer pod against the new
+internal_users.yml, or re-provision the indexer's data volume.

@@ -30,6 +30,17 @@ data:
         <queue_size>131072</queue_size>
       </remote>
 
+      {{- if .Values.iris.enabled }}
+      <!-- IRIS Integration - sends alerts level 3+ to IRIS as cases -->
+      <integration>
+        <name>custom-iris</name>
+        <hook_url>{{ .Values.iris.hookUrl }}</hook_url>
+        <api_key>{{ .Values.iris.apiKey }}</api_key>
+        <level>3</level>
+        <alert_format>json</alert_format>
+      </integration>
+      {{- end }}
+
       <ruleset>
         <decoder_dir>ruleset/decoders</decoder_dir>
         <rule_dir>ruleset/rules</rule_dir>

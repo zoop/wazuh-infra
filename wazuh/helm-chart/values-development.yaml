@@ -1,16 +1,36 @@
-replicaCount: 1
+manager:
+  resources:
+    limits:
+      cpu: "500m"
+      memory: "1Gi"
+    requests:
+      cpu: "250m"
+      memory: "512Mi"
+  storage:
+    size: 20Gi
+    storageClass: "standard"
 
-resources:
-  limits:
-    cpu: "500m"
-    memory: "1Gi"
-  requests:
-    cpu: "250m"
-    memory: "512Mi"
+indexer:
+  resources:
+    limits:
+      cpu: "500m"
+      memory: "1Gi"
+    requests:
+      cpu: "250m"
+      memory: "512Mi"
+  storage:
+    size: 20Gi
+    storageClass: "standard"
+  javaOpts: "-Xms512m -Xmx512m"
 
-storage:
-  size: 20Gi
-  storageClass: "standard"
+dashboard:
+  resources:
+    limits:
+      cpu: "500m"
+      memory: "1Gi"
+    requests:
+      cpu: "250m"
+      memory: "512Mi"
 
 agentService:
   type: LoadBalancer

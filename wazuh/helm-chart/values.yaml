@@ -1,15 +1,10 @@
 replicaCount: 1
 
-image:
-  repository: wazuh/wazuh-manager
-  pullPolicy: Always
-  tag: "4.14.5"
+namespace: wazuh
 
 serviceAccount:
   create: true
   name: "wazuh-sa"
-
-namespace: wazuh
 
 service:
   apiPort: 55000
@@ -19,18 +14,77 @@ service:
 agentService:
   type: LoadBalancer
 
-resources:
-  limits:
-    cpu: "1000m"
-    memory: "2Gi"
-  requests:
-    cpu: "500m"
-    memory: "1Gi"
+# Dashboard is a sensitive admin UI - default to ClusterIP (access via
+# `kubectl port-forward`) rather than a public LoadBalancer. Set type to
+# LoadBalancer and restrict loadBalancerSourceRanges if you need direct access.
+dashboardService:
+  type: ClusterIP
+  loadBalancerSourceRanges: []
 
-storage:
-  size: 50Gi
-  storageClass: "standard"
+manager:
+  image:
+    repository: wazuh/wazuh-manager
+    pullPolicy: Always
+    tag: "4.14.5"
+  resources:
+    limits:
+      cpu: "1000m"
+      memory: "2Gi"
+    requests:
+      cpu: "500m"
+      memory: "1Gi"
+  storage:
+    size: 50Gi
+    storageClass: "standard"
+
+indexer:
+  image:
+    repository: wazuh/wazuh-indexer
+    pullPolicy: Always
+    tag: "4.14.5"
+  resources:
+    limits:
+      cpu: "1000m"
+      memory: "2Gi"
+    requests:
+      cpu: "500m"
+      memory: "1Gi"
+  storage:
+    size: 50Gi
+    storageClass: "standard"
+  javaOpts: "-Xms1g -Xmx1g"
+
+dashboard:
+  image:
+    repository: wazuh/wazuh-dashboard
+    pullPolicy: Always
+    tag: "4.14.5"
+  resources:
+    limits:
+      cpu: "1000m"
+      memory: "2Gi"
+    requests:
+      cpu: "500m"
+      memory: "1Gi"
 
 wazuh:
   alertLevel: 3
-  adminPassword: "CHANGE_ME_SET_VIA_SECRET_VALUES_OVERRIDE"
+
+# Credentials. Do not set real values here - override via a separate,
+# gitignored file (see values-secrets.yaml.example) passed with `-f` at
+# install/upgrade time, e.g.:
+#   helm upgrade --install wazuh . -f values-production.yaml -f values-secrets.yaml
+secrets:
+  indexerUsername: admin
+  indexerPassword: "CHANGE_ME_SET_VIA_SECRET_VALUES_OVERRIDE"
+  apiUsername: wazuh-wui
+  apiPassword: "CHANGE_ME_SET_VIA_SECRET_VALUES_OVERRIDE"
+
+# Optional: forward alerts to a DFIR-IRIS instance as cases. hookUrl/apiKey
+# should point at an IRIS deployment reachable from this cluster (e.g. a VM
+# running the production docker-compose IRIS stack). Leave disabled if you
+# don't have one reachable yet.
+iris:
+  enabled: false
+  hookUrl: "https://iris-nginx/manage/cases/add"
+  apiKey: "CHANGE_ME_SET_VIA_SECRET_VALUES_OVERRIDE"

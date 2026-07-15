@@ -1,0 +1,33 @@
+{{- if .Values.serviceAccount.create }}
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: wazuh-app-secrets-reader
+  namespace: {{ .Values.namespace }}
+  labels:
+    {{- include "wazuh.labels" . | nindent 4 }}
+rules:
+  # Scoped to only the two secrets pods need to poll for at startup - not a
+  # blanket grant over every secret in the namespace (which would include
+  # wazuh-secrets' plaintext passwords).
+  - apiGroups: [""]
+    resources: ["secrets"]
+    resourceNames: ["wazuh-certs", "wazuh-internal-users"]
+    verbs: ["get"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: wazuh-app-secrets-reader
+  namespace: {{ .Values.namespace }}
+  labels:
+    {{- include "wazuh.labels" . | nindent 4 }}
+subjects:
+  - kind: ServiceAccount
+    name: {{ include "wazuh.serviceAccountName" . }}
+    namespace: {{ .Values.namespace }}
+roleRef:
+  kind: Role
+  name: wazuh-app-secrets-reader
+  apiGroup: rbac.authorization.k8s.io
+{{- end }}

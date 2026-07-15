@@ -1,0 +1,104 @@
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: wazuh-indexer
+  namespace: {{ .Values.namespace }}
+  labels:
+    {{- include "wazuh.labels" . | nindent 4 }}
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      {{- include "wazuh.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: indexer
+  serviceName: wazuh-indexer
+  template:
+    metadata:
+      labels:
+        {{- include "wazuh.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: indexer
+    spec:
+      serviceAccountName: {{ include "wazuh.serviceAccountName" . }}
+      # Wait for the certs/internal-users secrets the bootstrap job creates,
+      # since this StatefulSet is a normal (non-hook) resource that Helm may
+      # start creating concurrently with the hook completing.
+      initContainers:
+        - name: wait-for-secrets
+          image: "alpine/k8s:1.30.0"
+          command:
+            - /bin/bash
+            - -c
+            - |
+              until kubectl get secret wazuh-certs -n {{ .Values.namespace }} >/dev/null 2>&1 && \
+                    kubectl get secret wazuh-internal-users -n {{ .Values.namespace }} >/dev/null 2>&1; do
+                echo "waiting for wazuh-certs/wazuh-internal-users secrets..."
+                sleep 3
+              done
+      containers:
+        - name: wazuh-indexer
+          image: "{{ .Values.indexer.image.repository }}:{{ .Values.indexer.image.tag }}"
+          imagePullPolicy: {{ .Values.indexer.image.pullPolicy }}
+          ports:
+            - name: http
+              containerPort: 9200
+              protocol: TCP
+          env:
+            - name: OPENSEARCH_JAVA_OPTS
+              value: {{ .Values.indexer.javaOpts | quote }}
+          volumeMounts:
+            - name: config
+              mountPath: /usr/share/wazuh-indexer/config/opensearch.yml
+              subPath: wazuh.indexer.yml
+            - name: internal-users
+              mountPath: /usr/share/wazuh-indexer/config/opensearch-security/internal_users.yml
+              subPath: internal_users.yml
+            - name: certs
+              mountPath: /usr/share/wazuh-indexer/config/certs
+              readOnly: true
+            - name: data
+              mountPath: /var/lib/wazuh-indexer
+          resources:
+            {{- toYaml .Values.indexer.resources | nindent 12 }}
+          readinessProbe:
+            exec:
+              command: ["sh", "-c", "curl -sk https://localhost:9200 | grep -q 'Unauthorized'"]
+            initialDelaySeconds: 30
+            periodSeconds: 15
+            timeoutSeconds: 5
+          livenessProbe:
+            tcpSocket:
+              port: 9200
+            initialDelaySeconds: 60
+            periodSeconds: 30
+      volumes:
+        - name: config
+          configMap:
+            name: wazuh-indexer-config
+        - name: internal-users
+          secret:
+            secretName: wazuh-internal-users
+        - name: certs
+          secret:
+            secretName: wazuh-certs
+            # Only the files this component needs - not the manager/dashboard
+            # private keys, which also live in this same Secret.
+            items:
+              - key: wazuh-indexer.pem
+                path: wazuh.indexer.pem
+              - key: wazuh-indexer-key.pem
+                path: wazuh.indexer.key
+              - key: root-ca.pem
+                path: root-ca.pem
+              - key: admin.pem
+                path: admin.pem
+              - key: admin-key.pem
+                path: admin-key.pem
+  volumeClaimTemplates:
+    - metadata:
+        name: data
+      spec:
+        accessModes: ["ReadWriteOnce"]
+        storageClassName: {{ .Values.indexer.storage.storageClass }}
+        resources:
+          requests:
+            storage: {{ .Values.indexer.storage.size }}
