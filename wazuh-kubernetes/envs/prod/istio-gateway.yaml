@@ -1,0 +1,132 @@
+# Routes traffic from this cluster's existing (shared, but currently unused)
+# Istio ingress gateway to Wazuh's internal (ClusterIP-only) services.
+#
+# NOTE: the ingressgateway Service in istio-system needs 3 extra ports
+# (1514, 1515, 55000) added manually — see DEPLOYMENT_LOG.md. This file only
+# configures routing on top of ports that already exist on that Service.
+
+apiVersion: networking.istio.io/v1
+kind: Gateway
+metadata:
+  name: wazuh-gateway
+  namespace: wazuh
+spec:
+  selector:
+    istio: ingressgateway
+  servers:
+    - port:
+        number: 443
+        name: wazuh-dashboard-https
+        protocol: HTTPS
+      tls:
+        mode: SIMPLE
+        credentialName: wazuh-dashboard-tls
+      hosts:
+        - wazuh.zoop.tools
+    - port:
+        number: 1514
+        name: wazuh-events
+        protocol: TCP
+      hosts:
+        - "*"
+    - port:
+        number: 1515
+        name: wazuh-registration
+        protocol: TCP
+      hosts:
+        - "*"
+    - port:
+        number: 55000
+        name: wazuh-api
+        protocol: TCP
+      hosts:
+        - "*"
+---
+apiVersion: networking.istio.io/v1
+kind: VirtualService
+metadata:
+  name: wazuh-dashboard-vs
+  namespace: wazuh
+spec:
+  hosts:
+    - wazuh.zoop.tools
+  gateways:
+    - wazuh-gateway
+  http:
+    - route:
+        - destination:
+            host: dashboard.wazuh.svc.cluster.local
+            port:
+              number: 443
+---
+# The gateway terminates the real cert, then re-encrypts to the dashboard pod's own
+# self-signed HTTPS backend — skip cert verification for just this internal hop (the
+# pod's own TLS setup is unchanged), same concept as Traefik's ServersTransport.
+apiVersion: networking.istio.io/v1
+kind: DestinationRule
+metadata:
+  name: wazuh-dashboard-dr
+  namespace: wazuh
+spec:
+  host: dashboard.wazuh.svc.cluster.local
+  trafficPolicy:
+    tls:
+      mode: SIMPLE
+      insecureSkipVerify: true
+---
+apiVersion: networking.istio.io/v1
+kind: VirtualService
+metadata:
+  name: wazuh-events-vs
+  namespace: wazuh
+spec:
+  hosts:
+    - "*"
+  gateways:
+    - wazuh-gateway
+  tcp:
+    - match:
+        - port: 1514
+      route:
+        - destination:
+            host: wazuh-workers.wazuh.svc.cluster.local
+            port:
+              number: 1514
+---
+apiVersion: networking.istio.io/v1
+kind: VirtualService
+metadata:
+  name: wazuh-registration-vs
+  namespace: wazuh
+spec:
+  hosts:
+    - "*"
+  gateways:
+    - wazuh-gateway
+  tcp:
+    - match:
+        - port: 1515
+      route:
+        - destination:
+            host: wazuh.wazuh.svc.cluster.local
+            port:
+              number: 1515
+---
+apiVersion: networking.istio.io/v1
+kind: VirtualService
+metadata:
+  name: wazuh-api-vs
+  namespace: wazuh
+spec:
+  hosts:
+    - "*"
+  gateways:
+    - wazuh-gateway
+  tcp:
+    - match:
+        - port: 55000
+      route:
+        - destination:
+            host: wazuh.wazuh.svc.cluster.local
+            port:
+              number: 55000

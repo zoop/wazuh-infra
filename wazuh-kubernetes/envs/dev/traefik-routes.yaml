@@ -1,0 +1,64 @@
+# Routes traffic from the single Traefik LoadBalancer to Wazuh's internal
+# (ClusterIP-only) services, replacing the 3 separate public LoadBalancers
+# these services used to have.
+
+apiVersion: traefik.io/v1alpha1
+kind: IngressRoute
+metadata:
+  name: wazuh-dashboard
+  namespace: wazuh
+spec:
+  entryPoints:
+    - websecure
+  routes:
+    - match: Host(`wazuh.zoop.tools`)
+      kind: Rule
+      services:
+        - name: dashboard
+          port: 443
+          scheme: https
+          serversTransport: dashboard-backend-transport
+  tls:
+    secretName: wazuh-dashboard-tls
+---
+apiVersion: traefik.io/v1alpha1
+kind: IngressRouteTCP
+metadata:
+  name: wazuh-events
+  namespace: wazuh
+spec:
+  entryPoints:
+    - wazuh-1514
+  routes:
+    - match: HostSNI(`*`)
+      services:
+        - name: wazuh-workers
+          port: 1514
+---
+apiVersion: traefik.io/v1alpha1
+kind: IngressRouteTCP
+metadata:
+  name: wazuh-registration
+  namespace: wazuh
+spec:
+  entryPoints:
+    - wazuh-1515
+  routes:
+    - match: HostSNI(`*`)
+      services:
+        - name: wazuh
+          port: 1515
+---
+apiVersion: traefik.io/v1alpha1
+kind: IngressRouteTCP
+metadata:
+  name: wazuh-api
+  namespace: wazuh
+spec:
+  entryPoints:
+    - wazuh-55000
+  routes:
+    - match: HostSNI(`*`)
+      services:
+        - name: wazuh
+          port: 55000

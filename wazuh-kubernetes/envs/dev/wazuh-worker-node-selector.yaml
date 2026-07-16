@@ -1,0 +1,12 @@
+# Pin the Wazuh manager workers to the dev-stage-spot-3 GKE node pool.
+
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: wazuh-manager-worker
+  namespace: wazuh
+spec:
+  template:
+    spec:
+      nodeSelector:
+        cloud.google.com/gke-nodepool: dev-stage-spot-3

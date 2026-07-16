@@ -1,0 +1,37 @@
+# Trusted TLS cert for the Wazuh dashboard on zoop-ops, via a new zoop.tools-scoped
+# Cloudflare token (cert-manager-zoop-tools) — dedicated ClusterIssuer, doesn't touch
+# any other zone's cert-manager setup on this cluster.
+#
+# NOTE: the resulting Secret must live in istio-system (not wazuh) — Istio's gateway
+# SDS lookup for `credentialName` reads secrets from the gateway workload's own
+# namespace, not the namespace the Gateway/VirtualService objects are defined in.
+
+apiVersion: cert-manager.io/v1
+kind: ClusterIssuer
+metadata:
+  name: letsencrypt-cloudflare-zoop-tools
+spec:
+  acme:
+    email: platform-team@zoop.one
+    privateKeySecretRef:
+      name: letsencrypt-cloudflare-zoop-tools-key
+    server: https://acme-v02.api.letsencrypt.org/directory
+    solvers:
+      - dns01:
+          cloudflare:
+            apiTokenSecretRef:
+              name: cloudflare-api-token-zoop-tools
+              key: api-token
+---
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: wazuh-dashboard-cert
+  namespace: istio-system
+spec:
+  dnsNames:
+    - wazuh.zoop.tools
+  issuerRef:
+    kind: ClusterIssuer
+    name: letsencrypt-cloudflare-zoop-tools
+  secretName: wazuh-dashboard-tls

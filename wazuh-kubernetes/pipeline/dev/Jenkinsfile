@@ -1,0 +1,88 @@
+pipeline {
+    agent { label 'dev-agent' }
+
+    environment {
+        APP_NAME        = 'wazuh-k8s'
+        ENVIRONMENT     = 'develop'
+        GCP_PROJECT     = 'zoop-one-development'
+        GKE_CLUSTER     = 'development-k8s-cluster'
+        GKE_REGION      = 'asia-south1'
+        INFRA_REPO      = 'wazuh-infra'
+        WAZUH_VERSION   = '4.14.5'
+        CHART_DIR       = 'wazuh-kubernetes'
+    }
+
+    stages {
+        stage('Clone Infra Repo') {
+            steps {
+                checkout scm
+            }
+        }
+
+        stage('Authenticate GKE') {
+            steps {
+                sh '''
+                    gcloud container clusters get-credentials $GKE_CLUSTER \
+                        --region $GKE_REGION \
+                        --project $GCP_PROJECT
+                '''
+            }
+        }
+
+        stage('Deploy Traefik Ingress (single LB for dashboard/1514/1515/55000)') {
+            steps {
+                dir("${CHART_DIR}") {
+                    sh '''
+                        kubectl apply -f traefik/crd/kubernetes-crd-definition-v1.yml
+                        kubectl apply -k traefik/runtime/
+                    '''
+                }
+            }
+        }
+
+        stage('Generate Wazuh Certificates') {
+            steps {
+                dir("${CHART_DIR}/wazuh/certs") {
+                    sh '''
+                        if [ -f indexer_cluster/root-ca.pem ]; then
+                            echo "Certs already present under wazuh/certs/ — skipping regeneration (Jenkins workspace is reused across builds)."
+                        else
+                            bash indexer_cluster/generate_certs.sh
+                            bash dashboard_http/generate_certs.sh
+                        fi
+                    '''
+                }
+            }
+        }
+
+        stage('Deploy Wazuh (manager + indexer + dashboard)') {
+            steps {
+                dir("${CHART_DIR}") {
+                    sh '''
+                        kubectl apply -k envs/dev/
+                    '''
+                }
+            }
+        }
+
+        stage('Report Access Info') {
+            steps {
+                sh '''
+                    echo "Traefik external IP (single LB for dashboard:443, events:1514, registration:1515, api:55000):"
+                    kubectl -n traefik get svc traefik -o wide
+                    echo "Wazuh pods:"
+                    kubectl -n wazuh get pods -o wide
+                '''
+            }
+        }
+    }
+
+    post {
+        success {
+            echo 'Wazuh full stack (manager + indexer + dashboard) deployed successfully to development.'
+        }
+        failure {
+            echo 'Wazuh deployment failed. Check logs above.'
+        }
+    }
+}

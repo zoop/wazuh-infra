@@ -1,0 +1,10 @@
+# Traefik now fronts the agent-events port (1514) via TCP passthrough — this
+# Service no longer needs its own LoadBalancer/external IP.
+
+apiVersion: v1
+kind: Service
+metadata:
+  name: wazuh-workers
+  namespace: wazuh
+spec:
+  type: ClusterIP

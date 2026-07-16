@@ -1,0 +1,16 @@
+# Real, browser-trusted TLS cert for the dashboard hostname, issued via the
+# org's existing letsencrypt-cloudflare ClusterIssuer (same pattern as
+# istio-system/zoop-id-cert).
+
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: wazuh-dashboard-cert
+  namespace: wazuh
+spec:
+  dnsNames:
+    - wazuh.zoop.tools
+  issuerRef:
+    kind: ClusterIssuer
+    name: letsencrypt-cloudflare
+  secretName: wazuh-dashboard-tls

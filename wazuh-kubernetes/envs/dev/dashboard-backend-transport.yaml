@@ -1,0 +1,11 @@
+# Traefik terminates the real cert at the edge, then re-encrypts to the
+# dashboard pod's own self-signed HTTPS backend — skip cert verification for
+# just this internal hop (the pod's own TLS setup is unchanged).
+
+apiVersion: traefik.io/v1alpha1
+kind: ServersTransport
+metadata:
+  name: dashboard-backend-transport
+  namespace: wazuh
+spec:
+  insecureSkipVerify: true

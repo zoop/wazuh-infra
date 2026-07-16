@@ -1,0 +1,12 @@
+# Pin the Wazuh indexer to the dev-stage-spot-3 GKE node pool.
+
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: wazuh-indexer
+  namespace: wazuh
+spec:
+  template:
+    spec:
+      nodeSelector:
+        cloud.google.com/gke-nodepool: dev-stage-spot-3

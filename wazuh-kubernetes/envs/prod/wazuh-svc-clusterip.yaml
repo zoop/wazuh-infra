@@ -1,0 +1,10 @@
+# Traefik now fronts the API (55000) and registration (1515) ports via TCP
+# passthrough — this Service no longer needs its own LoadBalancer/external IP.
+
+apiVersion: v1
+kind: Service
+metadata:
+  name: wazuh
+  namespace: wazuh
+spec:
+  type: ClusterIP

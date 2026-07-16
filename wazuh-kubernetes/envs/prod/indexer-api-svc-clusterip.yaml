@@ -1,0 +1,12 @@
+# The upstream manifest exposes the raw indexer REST API (9200) via a public
+# LoadBalancer. Nothing outside the cluster needs to call it directly (the
+# manager and dashboard both reach it in-cluster via ClusterIP either way) so
+# keep it internal-only rather than exposing a SIEM's admin API to the internet.
+
+apiVersion: v1
+kind: Service
+metadata:
+  name: indexer
+  namespace: wazuh
+spec:
+  type: ClusterIP

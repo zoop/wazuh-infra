@@ -1,0 +1,104 @@
+pipeline {
+    agent { label 'prod-agent' }
+
+    environment {
+        APP_NAME        = 'wazuh-k8s'
+        ENVIRONMENT     = 'production'
+        GCP_PROJECT     = 'zoop-ops'
+        GKE_CLUSTER     = 'zoop-ops'
+        GKE_REGION      = 'asia-south1'
+        INFRA_REPO      = 'wazuh-infra'
+        WAZUH_VERSION   = '4.14.5'
+        CHART_DIR       = 'wazuh-kubernetes'
+    }
+
+    stages {
+        stage('Approval - Deploy?') {
+            steps {
+                input message: 'Deploy full Wazuh stack (manager + indexer + dashboard) to PRODUCTION (zoop-ops)?', ok: 'Yes, Deploy'
+            }
+        }
+
+        stage('Clone Infra Repo') {
+            steps {
+                checkout scm
+            }
+        }
+
+        stage('Authenticate GKE') {
+            steps {
+                sh '''
+                    gcloud container clusters get-credentials $GKE_CLUSTER \
+                        --region $GKE_REGION \
+                        --project $GCP_PROJECT
+                '''
+            }
+        }
+
+        stage('Generate Wazuh Certificates') {
+            steps {
+                dir("${CHART_DIR}/wazuh/certs") {
+                    sh '''
+                        if [ -f indexer_cluster/root-ca.pem ]; then
+                            echo "Certs already present under wazuh/certs/ — skipping regeneration (Jenkins workspace is reused across builds)."
+                        else
+                            bash indexer_cluster/generate_certs.sh
+                            bash dashboard_http/generate_certs.sh
+                        fi
+                    '''
+                }
+            }
+        }
+
+        stage('Ensure ports on shared istio-ingressgateway') {
+            steps {
+                sh '''
+                    for portspec in "wazuh-1514:1514" "wazuh-1515:1515" "wazuh-55000:55000"; do
+                        name="${portspec%%:*}"
+                        port="${portspec##*:}"
+                        exists=$(kubectl get svc istio-ingressgateway -n istio-system -o jsonpath="{.spec.ports[?(@.name=='$name')].name}")
+                        if [ -z "$exists" ]; then
+                            echo "Adding port $name ($port) to istio-system/istio-ingressgateway"
+                            kubectl patch svc istio-ingressgateway -n istio-system --type=json \
+                                -p="[{\\"op\\":\\"add\\",\\"path\\":\\"/spec/ports/-\\",\\"value\\":{\\"name\\":\\"$name\\",\\"port\\":$port,\\"protocol\\":\\"TCP\\",\\"targetPort\\":$port}}]"
+                        else
+                            echo "Port $name already present on istio-ingressgateway, skipping"
+                        fi
+                    done
+                '''
+            }
+        }
+
+        stage('Deploy Wazuh (manager + indexer + dashboard)') {
+            steps {
+                dir("${CHART_DIR}") {
+                    sh '''
+                        kubectl apply -k envs/prod/
+                    '''
+                }
+            }
+        }
+
+        stage('Report Access Info') {
+            steps {
+                sh '''
+                    echo "Shared Istio gateway external IP (dashboard:443, events:1514, registration:1515, api:55000):"
+                    kubectl -n istio-system get svc istio-ingressgateway -o wide
+                    echo "Wazuh Gateway/VirtualServices:"
+                    kubectl -n wazuh get gateway,virtualservice
+                    echo "Wazuh pods:"
+                    kubectl -n wazuh get pods -o wide
+                '''
+            }
+        }
+    }
+
+    post {
+        success {
+            echo 'Wazuh full stack deployed to production (zoop-ops).'
+        }
+        failure {
+            echo 'Production deployment failed. Check logs above.'
+        }
+    }
+}

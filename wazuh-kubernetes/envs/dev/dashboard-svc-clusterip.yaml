@@ -1,0 +1,10 @@
+# Traefik is now the single public entrypoint (TLS passthrough) — this no
+# longer needs its own LoadBalancer/external IP.
+
+apiVersion: v1
+kind: Service
+metadata:
+  name: dashboard
+  namespace: wazuh
+spec:
+  type: ClusterIP
